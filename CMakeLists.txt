@@ -8,6 +8,7 @@ project(gui)
 
 include(cmake/Functions.cmake)
 
+
 add_library(Gui STATIC
     src/Gui.cpp
 	src/Gui.h
@@ -77,3 +78,8 @@ load_external_lib(
 # GLAD és a rendszer OpenGL könyvtárának linkelése
 find_package(OpenGL REQUIRED)
 target_link_libraries(Test PRIVATE glad )
+
+target_compile_definitions(Test PRIVATE 
+    ASSET_PATH="${CMAKE_SOURCE_DIR}/assets/"
+)
+

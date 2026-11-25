@@ -17,7 +17,7 @@
 
 Font::Font(IRender2d* r, std::string fileName)
 {
-	std::string path("F:\\Users\\asdf\\Desktop\\fonts\\ttf\\");
+	std::string path(ASSET_PATH);
 	path.append(fileName);
 
 	std::ifstream font_file(path, std::ios::binary | std::ios::ate);
@@ -46,7 +46,7 @@ Font::Font(IRender2d* r, std::string fileName)
 
 	const int atlas_width = 512;
 	const int atlas_height = 512;
-	const float font_size = 12.0f;
+	const float font_size = 30.0f;
 
 	std::vector<unsigned char> atlas_pixels(atlas_width * atlas_height, 0);
 
@@ -158,7 +158,7 @@ Shader::Shader(std::string vs, std::string fs)
 
 GLuint Shader::loadShader(std::string src, GLuint type)
 {
-	std::string src2("F:\\Users\\asdf\\Desktop\\shaders\\");
+	std::string src2(ASSET_PATH);
 	src2.append(src);
 	std::string src3;
 
@@ -208,7 +208,7 @@ void Shader::setProjectionMatrix(float left, float right, float bottom, float to
 void Render::initalize(int width, int height)
 {
 	m_posX = 0; m_posY = 0;
-	shader = new Shader("Shader.vs", "Shader.fs");
+	shader = new Shader("shaders/Shader.vs", "shaders/Shader.fs");
 	shader->setProjectionMatrix(0.0f, width, height, 0.0f, -1.0f, 1.0f);
 
 	unsigned char p[3] = {255,255,255};
@@ -510,6 +510,9 @@ void Render::allocateBuffer(GLuint buffer, GLuint target, GLuint usage, void* da
 
 unsigned int Render::loadFont(std::string fileName)
 {
+
+	
+
 	Font f(this, fileName);
 	m_fonts.push_back(f);
 	m_fontAtlas = f.m_atlas;
@@ -540,7 +543,7 @@ unsigned int Render::loadImage(unsigned char* pixels, int width, int height, int
 GLuint Render::loadTexture(std::string fileName)
 {
 
-	std::string path("F:\\Users\\asdf\\Desktop\\textures\\");
+	std::string path(ASSET_PATH);
 	path.append(fileName);
 
 	int width, height, nrComponents;

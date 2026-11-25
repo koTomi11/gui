@@ -39,7 +39,8 @@ int main() {
 
 	Render r;
 	r.initalize(800, 600);
-
+	int font = r.loadFont("fonts/Montserrat-Italic-VariableFont_wght.ttf");
+	
 
 	// 4. Fõ ciklus (render loop)
 	while (!glfwWindowShouldClose(window)) {
@@ -49,6 +50,7 @@ int main() {
 
 		r.fillCircle(200, 200, 20);
 
+		r.drawString(100, 100, "qwertzui12345%!/=");
 		r.endFrame();
 
 		glfwSwapBuffers(window);
