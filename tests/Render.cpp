@@ -1,0 +1,585 @@
+#include "Render.h"
+#include <math.h>
+
+#define STB_TRUETYPE_IMPLEMENTATION
+#include <stb_truetype.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
+
+#include <iostream>
+#include <fstream>
+
+#include <string>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+Font::Font(IRender2d* r, std::string fileName)
+{
+	std::string path("F:\\Users\\asdf\\Desktop\\fonts\\ttf\\");
+	path.append(fileName);
+
+	std::ifstream font_file(path, std::ios::binary | std::ios::ate);
+
+	if (!font_file.is_open()) {
+		std::cerr << "Nem sikerült megnyitni a fájlt!" << std::endl;
+
+	}
+
+	std::streamsize size = font_file.tellg();
+	std::vector<unsigned char> font_buffer(size);
+
+
+	font_file.seekg(0, std::ios::beg);
+	if (!font_file.read(reinterpret_cast<char*>(font_buffer.data()), size)) {
+		std::cerr << "Hiba történt a beolvasás során!" << std::endl;
+	}
+	font_file.close();
+
+
+	stbtt_fontinfo font;
+	if (!stbtt_InitFont(&font, font_buffer.data(), stbtt_GetFontOffsetForIndex(font_buffer.data(), 0))) {
+		std::cerr << "Nem sikerült inicializálni a betûtípust!" << std::endl;
+
+	}
+
+	const int atlas_width = 512;
+	const int atlas_height = 512;
+	const float font_size = 12.0f;
+
+	std::vector<unsigned char> atlas_pixels(atlas_width * atlas_height, 0);
+
+
+	if (!stbtt_PackBegin(&ctx, atlas_pixels.data(), atlas_width, atlas_height, 0, 1, nullptr)) {
+		std::cerr << "Nem sikerült elindítani a packert!" << std::endl;
+
+	}
+	stbtt_PackSetOversampling(&ctx, 2, 2);
+
+	if (!stbtt_PackFontRange(&ctx, font_buffer.data(), 0, font_size, 32, 95, packedChars)) {
+		std::cerr << "Nem fértek el a betûk az atlaszban! Növeld meg a textúra méretét." << std::endl;
+		stbtt_PackEnd(&ctx);
+
+	}
+
+	stbtt_PackEnd(&ctx);
+	std::vector<unsigned char> atlas(512 * 512 * 4);
+
+	int pointer = 0;
+	for (unsigned char c : atlas_pixels)
+	{
+		atlas[pointer++] = 255;
+		atlas[pointer++] = 255;
+		atlas[pointer++] = 255;
+		atlas[pointer++] = c;
+	}
+
+	m_atlas = r->loadImage(atlas.data(), atlas_width, atlas_height, 4);
+
+	for (int i = 0; i < charsToIncludeInFontAtlas; i++)
+	{
+		float unusedX, unusedY;
+
+		stbtt_GetPackedQuad(
+			packedChars,              // Array of stbtt_packedchar
+			512,                      // Width of the font atlas texture
+			512,                     // Height of the font atlas texture
+			i,                                   // Index of the glyph
+			&unusedX, &unusedY,                  // current position of the glyph in screen pixel coordinates, (not required as we have a different corrdinate system)
+			&alignedQuads[i],                    // stbtt_alligned_quad struct. (this struct mainly consists of the texture coordinates)
+			0                                    // Allign X and Y position to a integer (doesn't matter because we are not using 'unusedX' and 'unusedY')
+		);
+	}
+}
+
+void Font::getVerticesOfChar(char ch, float size, float* posX, float posY, glm::vec2* vPos, glm::vec2* texCoords)
+{
+	float pixelScale = 1;
+
+
+	stbtt_packedchar* packedChar = &packedChars[ch - codePointOfFirstChar];
+	stbtt_aligned_quad* alignedQuad = &alignedQuads[ch - codePointOfFirstChar];
+
+
+
+	glm::vec2 glyphSize =
+	{
+		(packedChar->x1 - packedChar->x0),
+		(packedChar->y1 - packedChar->y0)
+	};
+
+	glm::vec2 glyphBoundingBoxBottomLeft(
+		*posX + (packedChar->xoff * 2),
+		posY + (packedChar->yoff * 2));
+
+
+	// The order of vertices of a quad goes top-right, top-left, bottom-left, bottom-right
+	glm::vec2 glyphVertices[4] =
+	{
+		{ glyphBoundingBoxBottomLeft.x + glyphSize.x, glyphBoundingBoxBottomLeft.y + glyphSize.y },
+		{ glyphBoundingBoxBottomLeft.x, glyphBoundingBoxBottomLeft.y + glyphSize.y },
+		{ glyphBoundingBoxBottomLeft.x, glyphBoundingBoxBottomLeft.y },
+		{ glyphBoundingBoxBottomLeft.x + glyphSize.x, glyphBoundingBoxBottomLeft.y },
+	};
+
+	glm::vec2 glyphTextureCoords[4] =
+	{
+		{ alignedQuad->s1, alignedQuad->t1 },
+		{ alignedQuad->s0, alignedQuad->t1 },
+		{ alignedQuad->s0, alignedQuad->t0 },
+		{ alignedQuad->s1, alignedQuad->t0 },
+	};
+
+	memcpy(vPos, glyphVertices, sizeof(glm::vec2) * 4);
+	memcpy(texCoords, glyphTextureCoords, sizeof(glm::vec2) * 4);
+
+	*posX += packedChar->xadvance * 2;
+
+}
+
+
+Shader::Shader(std::string vs, std::string fs)
+{
+	m_program = glCreateProgram();
+
+	m_vs = loadShader(vs, GL_VERTEX_SHADER);
+	m_fs = loadShader(fs, GL_FRAGMENT_SHADER);
+
+	glAttachShader(m_program, m_vs);
+	glAttachShader(m_program, m_fs);
+
+
+	glLinkProgram(m_program);
+
+
+}
+
+
+GLuint Shader::loadShader(std::string src, GLuint type)
+{
+	std::string src2("F:\\Users\\asdf\\Desktop\\shaders\\");
+	src2.append(src);
+	std::string src3;
+
+	std::ifstream file(src2);
+	std::string line;
+
+	while (std::getline(file, line)) {
+		src3.append(line);
+		src3.append("\n");
+	}
+
+	const GLchar*  string[1];
+
+	string[0] = src3.c_str();
+	size_t s = strlen(src3.c_str());
+
+	GLuint shaderId = glCreateShader(type);
+	glShaderSource(shaderId, 1, string, NULL);
+	glCompileShader(shaderId);
+
+
+	return shaderId;
+}
+
+void Shader::bind()
+{
+	glUseProgram(m_program);
+}
+
+void Shader::unbind()
+{
+	glUseProgram(0);
+}
+
+void Shader::setProjectionMatrix(float left, float right, float bottom, float top, float zNear, float zFar)
+{
+
+	glm::mat4 projMat = glm::ortho(left, right, bottom, top, zNear, zFar);
+	GLuint location = glGetUniformLocation(m_program, "projMatrix");
+
+	bind();
+	glUniformMatrix4fv(location, 1, GL_FALSE, &projMat[0][0]);
+
+}
+
+
+void Render::initalize(int width, int height)
+{
+	m_posX = 0; m_posY = 0;
+	shader = new Shader("Shader.vs", "Shader.fs");
+	shader->setProjectionMatrix(0.0f, width, height, 0.0f, -1.0f, 1.0f);
+
+	unsigned char p[3] = {255,255,255};
+	m_whiteTexture = loadImage(p, 1, 1, 3);
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	glDisable(GL_CULL_FACE);
+	
+	glGenVertexArrays(1, &m_vao);
+	glBindVertexArray(m_vao);
+
+	m_verticesCapacity = 2;
+	m_indicesCapacity = 2;
+	
+	allocateBuffers(m_verticesCapacity, m_indicesCapacity);
+
+	lineWidth = 2;
+	m_r = 0; m_g = 0; m_b = 0;
+
+}
+
+void Render::endFrame()
+{
+
+	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	shader->bind();
+	glBindVertexArray(m_vao);
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+	glEnableVertexAttribArray(2);
+
+	bool grow = false;
+	
+	while (m_vertices.size() > m_verticesCapacity)
+	{
+		m_verticesCapacity *= 2;
+		grow = true;
+	}
+
+	while (m_indices.size() > m_indicesCapacity)
+	{
+		m_indicesCapacity *= 2;
+		grow = true;
+	}
+
+	if (grow)
+	{
+		allocateBuffers(m_verticesCapacity, m_indicesCapacity);
+	}
+
+	glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+	if (m_vertices.size() > 0)
+	{
+		glBufferSubData(GL_ARRAY_BUFFER, 0, m_vertices.size() * sizeof(Vertex), &m_vertices[0]);
+		glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, m_indices.size() * sizeof(unsigned int), &m_indices[0]);
+	}
+	
+
+	for (DrawCmd cmd : cmds)
+	{
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, cmd.texture);
+
+		glDrawElements(GL_TRIANGLES, cmd.count, GL_UNSIGNED_INT,(void*) (cmd.first * 4));
+	}
+
+	glDisableVertexAttribArray(0);
+	glDisableVertexAttribArray(1);
+	glDisableVertexAttribArray(2);
+
+	m_vertices.clear();
+	m_indices.clear();
+	cmds.clear();
+}
+
+void Render::drawRect(int x, int y, int width, int height)
+{
+	fillRect(x, y, lineWidth, height);
+	fillRect(x, y, width, lineWidth);
+
+	fillRect(x + width, y, lineWidth, height);
+	fillRect(x, y + height, width + lineWidth, lineWidth);
+}
+
+void Render::drawTriangle(float x0, float y0, float x1, float y1, float x2, float y2)
+{
+
+	DrawCmd cmd;
+	cmd.count = 3;
+	cmd.first = m_indices.size();
+	cmd.drawMode = GL_TRIANGLES;
+	cmd.texture = m_whiteTexture;
+	cmds.push_back(cmd);
+
+	unsigned int base = m_vertices.size();
+
+	m_vertices.push_back(Vertex(m_posX + x0, m_posY + y0));
+	m_vertices.push_back(Vertex(m_posX + x1, m_posY + y1));
+	m_vertices.push_back(Vertex(m_posX + x2, m_posY + y2));
+
+	m_indices.push_back(base + 0); 	m_indices.push_back(base + 1); 	m_indices.push_back(base + 2);
+
+}
+
+void Render::fillCircle(int x, int y, int r)
+{
+
+	x += m_posX;
+	y += m_posY;
+
+	int segments = 24;
+
+	DrawCmd cmd;
+	cmd.count = segments * 3;
+	cmd.first = m_indices.size();
+	cmd.drawMode = GL_TRIANGLES;
+	cmd.texture = m_whiteTexture;
+	cmds.push_back(cmd);
+
+	if (segments < 3) segments = 3;
+
+	// Kezdõ index eltolás (ha már vannak elemek a pufferben)
+	uint32_t baseIndex = m_vertices.size();
+
+	// 1. Középponti vertex hozzáadása
+	m_vertices.push_back(Vertex(x,y,m_r,m_g,m_b));
+
+	// 2. Kerületi vertexek hozzáadása
+	for (int i = 0; i < segments; ++i) {
+		float angle = i * (2.0f * 3.14159265f / segments);
+		float vx = x + cosf(angle) * r;
+		float vy = y + sinf(angle) * r;
+		m_vertices.push_back(Vertex(vx, vy, m_r, m_g, m_b));
+
+	}
+
+	// 3. Indexek legenerálása (Triangle List-té alakítás)
+	for (int i = 0; i < segments; ++i) {
+		uint32_t currentOuter = baseIndex + 1 + i;
+		uint32_t nextOuter = baseIndex + 1 + ((i + 1) % segments);
+
+		m_indices.push_back(baseIndex);    // Középpont
+		m_indices.push_back(currentOuter); // Aktuális külsõ pont
+		m_indices.push_back(nextOuter);    // Következõ külsõ pont
+	}
+}
+
+
+void Render::drawLine(int x0, int y0, int x1, int y1)
+{
+
+	x0 += m_posX;
+	y0 += m_posY;
+	x1 += m_posX;
+	y1 += m_posY;
+
+	float dx = x1 - x0;
+	float dy = y1 - y0;
+
+	float length = sqrtf(dx * dx + dy * dy);
+
+	float nx = -dy / length;
+	float ny = dx / length;
+
+	float offsetX = nx * (lineWidth * 0.5f);
+	float offsetY = ny * (lineWidth * 0.5f);
+
+	DrawCmd cmd;
+	cmd.count = 6;
+	cmd.first = m_indices.size();
+	cmd.drawMode = GL_TRIANGLES;
+	cmd.texture = m_whiteTexture;
+	cmds.push_back(cmd);
+
+	unsigned int base = m_vertices.size();
+
+	m_vertices.push_back(Vertex(x0 + offsetX, y0 + offsetY, m_r, m_g, m_b));
+	m_vertices.push_back(Vertex(x0 - offsetX, y0 - offsetY, m_r, m_g, m_b));
+	m_vertices.push_back(Vertex(x1 + offsetX, y1 + offsetY, m_r, m_g, m_b));
+	m_vertices.push_back(Vertex(x1 - offsetX, y1 - offsetY, m_r, m_g, m_b));
+	
+	m_indices.push_back(base + 0); m_indices.push_back(base + 1); m_indices.push_back(base + 2);
+	m_indices.push_back(base + 3); m_indices.push_back(base + 1); m_indices.push_back(base + 2);
+	
+}
+
+void Render::drawString(int x, int y, std::string str)
+{
+	x += m_posX;
+	y += m_posY;
+
+	Font font = m_fonts[0];
+
+	glm::vec2 v[4], t[4];
+	float posX = x;
+
+	DrawCmd cmd;
+	cmd.count = str.length() * 6;
+	cmd.first = m_indices.size();
+	cmd.drawMode = GL_TRIANGLES;
+	cmd.texture = font.m_atlas;
+	cmds.push_back(cmd);
+
+	for (int i=0;i<str.length();i++)
+	{
+
+		char c = str[i];
+		font.getVerticesOfChar(c, 1, &posX, y, v, t);
+		unsigned int base = m_vertices.size();
+		m_vertices.push_back(Vertex(v[0].x, v[0].y, t[0].x, t[0].y, m_r, m_g, m_b));
+		m_vertices.push_back(Vertex(v[1].x, v[1].y, t[1].x, t[1].y, m_r, m_g, m_b));
+		m_vertices.push_back(Vertex(v[2].x, v[2].y, t[2].x, t[2].y, m_r, m_g, m_b));
+		m_vertices.push_back(Vertex(v[3].x, v[3].y, t[3].x, t[3].y, m_r, m_g, m_b));
+
+		m_indices.push_back(base + 0); m_indices.push_back(base + 1); m_indices.push_back(base + 3);
+		m_indices.push_back(base + 1); m_indices.push_back(base + 2); m_indices.push_back(base + 3);
+	}
+
+}
+
+unsigned int Render::loadImage(std::string fileName)
+{
+	return (int) loadTexture(fileName);
+}
+
+void Render::drawImage(int id, int x, int y, int width, int height)
+{
+
+	x += m_posX;
+	y += m_posY;
+
+	DrawCmd cmd;
+	cmd.count = 6;
+	cmd.first = m_indices.size();
+	cmd.drawMode = GL_TRIANGLES;
+	cmd.texture = id;
+	cmds.push_back(cmd);
+
+	unsigned int base = m_vertices.size();
+
+	m_vertices.push_back(Vertex(x + width, y + height,1,1));
+	m_vertices.push_back(Vertex(x + width, y,1,0));
+	m_vertices.push_back(Vertex(x, y,0,0));
+	m_vertices.push_back(Vertex(x, y + height,0,1));
+
+	m_indices.push_back(base + 0); m_indices.push_back(base + 1); m_indices.push_back(base + 3);
+	m_indices.push_back(base + 1); m_indices.push_back(base + 2); m_indices.push_back(base + 3);
+}
+
+void Render::fillRect(int x, int y, int width, int height)
+{
+
+	x += m_posX;
+	y += m_posY;
+
+	DrawCmd cmd;
+	cmd.count = 6;
+	cmd.first = m_indices.size();
+	cmd.drawMode = GL_TRIANGLES;
+	cmd.texture = m_whiteTexture;
+	cmds.push_back(cmd);
+
+	unsigned int base = m_vertices.size();
+
+	m_vertices.push_back(Vertex(x + width,y + height, m_r, m_g, m_b));
+	m_vertices.push_back(Vertex(x + width, y, m_r, m_g, m_b));
+	m_vertices.push_back(Vertex(x, y, m_r, m_g, m_b));
+	m_vertices.push_back(Vertex(x, y + height, m_r, m_g, m_b));
+
+	m_indices.push_back(base + 0); m_indices.push_back(base + 1); m_indices.push_back(base + 3);
+	m_indices.push_back(base + 1); m_indices.push_back(base + 2); m_indices.push_back(base + 3);
+
+}
+
+void Render::setColor(unsigned char r, unsigned char g, unsigned char b)
+{
+	m_r = r; m_g = g; m_b = b;
+}
+
+void Render::setLineWidth(int s)
+{
+	lineWidth = s;
+}
+
+void Render::setPos(int x, int y)
+{
+	m_posX = x; m_posY = y;
+}
+
+void Render::allocateBuffer(GLuint buffer, GLuint target, GLuint usage, void* data, unsigned int size)
+{
+	glBindBuffer(target, buffer);
+	glBufferData(target, size, data, usage);
+}
+
+unsigned int Render::loadFont(std::string fileName)
+{
+	Font f(this, fileName);
+	m_fonts.push_back(f);
+	m_fontAtlas = f.m_atlas;
+	return m_fonts.size() - 1;
+}
+
+unsigned int Render::loadImage(unsigned char* pixels, int width, int height, int nComps)
+{
+	unsigned int textureID;
+	glGenTextures(1, &textureID);
+
+	GLenum format;
+	if (nComps == 1)      format = GL_RED;
+	else if (nComps == 3) format = GL_RGB;
+	else if (nComps == 4) format = GL_RGBA;
+
+	glBindTexture(GL_TEXTURE_2D, textureID);
+	glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, pixels);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	return textureID;
+}
+
+GLuint Render::loadTexture(std::string fileName)
+{
+
+	std::string path("F:\\Users\\asdf\\Desktop\\textures\\");
+	path.append(fileName);
+
+	int width, height, nrComponents;
+
+	unsigned char* data = stbi_load(path.c_str(), &width, &height, &nrComponents, 0);
+	if (data) {
+		return loadImage(data, width, height, nrComponents);
+	}
+	else {
+		std::cout << "Hiba: Nem sikerult a texturat betolteni a kovetkezo utvonalrol: " << path << std::endl;
+		stbi_image_free(data);
+	}
+
+	return 0;
+}
+
+void Render::deleteBuffers()
+{
+	glDeleteBuffers(1, &m_ibo);
+	glDeleteBuffers(1, &m_vbo);
+}
+
+void Render::allocateBuffers(int verticesCount, int indicesCount)
+{
+	glGenBuffers(1, &m_vbo);
+	glGenBuffers(1, &m_ibo);
+
+	allocateBuffer(m_vbo, GL_ARRAY_BUFFER, GL_STREAM_DRAW, nullptr, verticesCount * sizeof(Vertex));
+	allocateBuffer(m_ibo, GL_ELEMENT_ARRAY_BUFFER, GL_STREAM_DRAW, nullptr, indicesCount * sizeof(unsigned int));
+
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+	glEnableVertexAttribArray(2);
+
+	glVertexAttribPointer(0, 2, GL_FLOAT, false, 20, (void*)0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, false, 20, (void*)8);
+	glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, 20, (void*)16);
+
+	glDisableVertexAttribArray(0);
+	glDisableVertexAttribArray(1);
+	glDisableVertexAttribArray(2);
+}

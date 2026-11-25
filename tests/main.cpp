@@ -2,6 +2,8 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
+#include "Render.h"
+
 int main() {
 	// 1. GLFW inicializálása
 	if (!glfwInit()) {
@@ -35,11 +37,19 @@ int main() {
 	std::cout << "OpenGL verzio: " << glGetString(GL_VERSION) << std::endl;
 	std::cout << "GPU: " << glGetString(GL_RENDERER) << std::endl;
 
+	Render r;
+	r.initalize(800, 600);
+
+
 	// 4. Fõ ciklus (render loop)
 	while (!glfwWindowShouldClose(window)) {
 		// Háttér törlése kékeszöld színnel
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
+
+		r.fillCircle(200, 200, 20);
+
+		r.endFrame();
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
