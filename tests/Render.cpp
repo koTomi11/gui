@@ -46,7 +46,7 @@ Font::Font(IRender2d* r, std::string fileName)
 
 	const int atlas_width = 512;
 	const int atlas_height = 512;
-	const float font_size = 30.0f;
+	const float font_size = 10;
 
 	std::vector<unsigned char> atlas_pixels(atlas_width * atlas_height, 0);
 
@@ -293,8 +293,8 @@ void Render::drawRect(int x, int y, int width, int height)
 	fillRect(x, y, lineWidth, height);
 	fillRect(x, y, width, lineWidth);
 
-	fillRect(x + width, y, lineWidth, height);
-	fillRect(x, y + height, width + lineWidth, lineWidth);
+	fillRect(x + width - lineWidth, y, lineWidth, height);
+	fillRect(x, y + height - lineWidth, width, lineWidth);
 }
 
 void Render::drawTriangle(float x0, float y0, float x1, float y1, float x2, float y2)
@@ -534,8 +534,9 @@ unsigned int Render::loadImage(unsigned char* pixels, int width, int height, int
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	
 
 	return textureID;
 }

@@ -72,8 +72,8 @@ Window::Window(int width, int height)
 		
 	}
 
-	glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
-	glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+	glfwWindowHint(GLFW_MAXIMIZED, GLFW_FALSE);
+	glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -85,6 +85,7 @@ Window::Window(int width, int height)
 		
 	}
 	glfwSetWindowUserPointer(m_window, this);
+	glfwSetWindowPos(m_window, 200, 100);
 
 	glfwSetKeyCallback(m_window, key_callback);
 	glfwSetCursorPosCallback(m_window, cursor_position_callback);

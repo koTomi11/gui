@@ -7,10 +7,11 @@
 #include "Window.h"
 #include <GuiContext.h>
 #include <GuiItem.h>
+#include <GuiPanel.h>
 
 int main() {
 	
-	Window w(600,800);
+	Window w(800,600);
 	
 	Render r;
 	r.initalize(w.getWidth(), w.getHeight());
@@ -20,6 +21,8 @@ int main() {
 	GuiContext::WINDOW = &w;
 
 	GuiItem item(40,40,50,50);
+
+	GuiPanel panel(0, 0, w.getWidth(), w.getHeight());
 	
 	while (!w.isClose()) {
 		
@@ -29,8 +32,8 @@ int main() {
 		w.poolEvent();
 		
 		
-		item.draw();
-		item.update();
+		panel.draw();
+		panel.update();
 		
 		r.endFrame();
 

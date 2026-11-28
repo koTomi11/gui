@@ -93,13 +93,9 @@ void GuiItem::drawNormal(IRender2d* r)
 void GuiItem::drawHovered(IRender2d* r)
 {
 	drawNormal(r);
-	r->setColor(10, 10, 181);
-	r->fillRect(m_x, m_y, m_width, m_height);
 }
 
 void GuiItem::drawPressed(IRender2d* r)
 {
 	drawNormal(r);
-	r->setColor(10,200, 181);
-	r->fillRect(m_x, m_y, m_width, m_height);
 }

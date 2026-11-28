@@ -12,6 +12,7 @@ public:
 	static IWindow* WINDOW;
 	static IRender2d* RENDER;
 	static GuiItem* ROOT;
+	static GuiItem* ACTIVATED;
 
 	static IRender2d* getRender();
 

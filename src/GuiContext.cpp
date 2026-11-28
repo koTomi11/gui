@@ -3,6 +3,7 @@
 IWindow* GuiContext::WINDOW;
 IRender2d* GuiContext::RENDER;
 GuiItem* GuiContext::ROOT;
+GuiItem* GuiContext::ACTIVATED;
 
 IRender2d* GuiContext::getRender()
 {
