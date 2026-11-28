@@ -12,9 +12,42 @@ include(cmake/Functions.cmake)
 add_library(Gui STATIC
     src/Gui.cpp
 	src/Gui.h
+	src/GuiContext.cpp
+	src/GuiItem.cpp
+	src/GuiPanel.cpp
+	src/GuiButton.cpp
+	src/GuiTextField.cpp
+	
+	 include/IRender2d.h 
+	 include/IWindow.h
+	 include/GuiContext.h
+	 include/GuiItem.h
+	 include/GuiPanel.h
+	 include/GuiButton.h
+	 include/GuiTextField.h
+
 )
 
-add_executable(Test tests/main.cpp tests/Render.h tests/Render.cpp)
+source_group(include FILES 
+	include/IRender2d.h 
+	 include/IWindow.h
+	 include/GuiContext.h
+	 include/GuiItem.h
+	 include/GuiPanel.h
+	 include/GuiButton.h
+	 include/GuiTextField.h)
+
+target_include_directories(Gui PUBLIC include)
+
+add_executable(Test tests/main.cpp tests/Render.h tests/Render.cpp
+
+
+tests/Window.h tests/Window.cpp
+
+)
+
+target_link_libraries(Test PRIVATE Gui)
+
 
 set(STB_IMAGE_DIR "${CMAKE_BINARY_DIR}/external/stb")
 
@@ -38,7 +71,7 @@ if(NOT EXISTS "${STB_IMAGE_DIR}/stb_truetype.h")
 endif()
 
  target_include_directories(Test PRIVATE ${STB_IMAGE_DIR})
- target_include_directories(Test PRIVATE includes)
+ target_include_directories(Test PRIVATE include)
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)

@@ -4,59 +4,39 @@
 
 #include "Render.h"
 
+#include "Window.h"
+#include <GuiContext.h>
+#include <GuiItem.h>
+
 int main() {
-	// 1. GLFW inicializálása
-	if (!glfwInit()) {
-		std::cerr << "Hiba: Nem sikerult inicializalni a GLFW-t!" << std::endl;
-		return -1;
-	}
-
-	// OpenGL 3.3 Core profil beállítása
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-	// 2. Ablak létrehozása
-	GLFWwindow* window = glfwCreateWindow(800, 600, "OpenGL + GLAD Teszt", nullptr, nullptr);
-	if (!window) {
-		std::cerr << "Hiba: Nem sikerult letrehozni a GLFW ablakot!" << std::endl;
-		glfwTerminate();
-		return -1;
-	}
-	glfwMakeContextCurrent(window);
-
-	// 3. GLAD inicializálása (OpenGL függvénymutatók betöltése)
-	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-		std::cerr << "Hiba: Nem sikerult inicializalni a GLAD-et!" << std::endl;
-		glfwTerminate();
-		return -1;
-	}
-
-	// Ha minden sikeres, kiírjuk a verziót és a videókártya adatait
-	std::cout << "Sikeres inicializalas!" << std::endl;
-	std::cout << "OpenGL verzio: " << glGetString(GL_VERSION) << std::endl;
-	std::cout << "GPU: " << glGetString(GL_RENDERER) << std::endl;
-
+	
+	Window w(600,800);
+	
 	Render r;
-	r.initalize(800, 600);
+	r.initalize(w.getWidth(), w.getHeight());
 	int font = r.loadFont("fonts/Montserrat-Italic-VariableFont_wght.ttf");
 	
+	GuiContext::RENDER = &r;
+	GuiContext::WINDOW = &w;
 
-	// 4. Fõ ciklus (render loop)
-	while (!glfwWindowShouldClose(window)) {
-		// Háttér törlése kékeszöld színnel
+	GuiItem item(40,40,50,50);
+	
+	while (!w.isClose()) {
+		
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		r.fillCircle(200, 200, 20);
-
-		r.drawString(100, 100, "qwertzui12345%!/=");
+		w.poolEvent();
+		
+		
+		item.draw();
+		item.update();
+		
 		r.endFrame();
 
-		glfwSwapBuffers(window);
-		glfwPollEvents();
+		w.swapBuffers();
 	}
 
-	glfwTerminate();
+	
 	return 0;
 }
